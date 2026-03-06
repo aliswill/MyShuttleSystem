@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多獎池抽獎系統</title>
+    <style>
+        /* CSS 樣式 (與之前版本基本相同) */
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            display: flex;
+            height: 100vh;
+        }
+        #background-container {
+            position: relative;
+            width: 80%;
+            height: 100%;
+            background-image: url('background.png');
+            background-size: cover;
+            background-position: center;
+            overflow: hidden;
+        }
+        #right-panel {
+            width: 20%;
+            height: 100%;
+            background-color: #f0f0f0;
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-y: auto;
+        }
+        .pool-section {
+
+	    margin:20px;
+            width: 100%;
+            height:100%;
+	    padding:5px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .pool-section h3 {
+            margin-top: 0;
+            text-align: center;
+            color: #333;
+        }
+        .file-upload-container {
+            margin-bottom: 10px;
+        }
+        .draw-buttons {
+            display: flex;
+            justify-content: space-around;
+        }
+        .winner-list-container {
+            margin-left: 15px;
+	    max-height: 500px; /* 設定最大高度 11/19新增 */
+  	    min-height: 250px;
+            overflow-y: auto; /* 讓內容超出時顯示滾動條 */
+
+        }
+
+	.winner-list-container ul {
+            color:black;
+
+        }
+
+
+        .winner-list-container h4 {
+            margin: 5px;
+            text-align: center;
+        }
+        .winner-list {
+            list-style: none;
+            padding: 0 10px;
+            margin: 0;
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 5px;
+        }
+        .winner-list li {
+            padding: 5px 0;
+            border-bottom: 1px dashed #eee;
+            font-size: 1em;
+        }
+
+	.draw-buttons button {
+    background-color: #b30000; /* 深紅色 */
+    color: white;
+    padding: 7px 14px;
+    font-size: 12px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-right: 10px;
+
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
+    transition: all 0.15s ease;
+}
+
+/* 滑過：亮一點 */
+.draw-buttons button:hover {
+    background-color: #cc0000;
+}
+
+/* 按下：微微縮小＋強光暈 */
+.draw-buttons button:active {
+    transform: scale(0.96); /* 壓下去 */
+    box-shadow: 0 0 12px rgba(255, 0, 0, 0.7); /* 紅色光暈 */
+}
+
+/* 隱藏原始 input */
+.file-upload-container input[type="file"] {
+    display: none;
+}
+
+/* 自訂白底黑字按鈕 */
+.upload-btn {
+    display: inline-block;
+    background: white;
+    color: black;
+    padding: 8px 18px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+
+    transition: all 0.15s ease;
+}
+
+/* 滑過：灰底黑字 */
+.upload-btn:hover {
+    background: #f0f0f0;
+}
+
+/* 按下：更深灰底白字 */
+.upload-btn:active {
+    background: #666;
+    color: white;
+    transform: scale(0.97);
+}
+
+
+#right-panel {
+    background-color: #0f3d2e; /* 深綠色 */
+    color: #930000;            /* 深紅色字 */
+    padding: 20px;
+    border-radius: 8px;
+    min-width: 320px; /* 或你想要的最小寬度 */
+}
+
+/* 標題也改成深紅色 */
+#right-panel h2{
+    color:white;
+}
+#right-panel h3,
+{
+    color: #990000;
+    color:white;
+}
+
+
+
+        .gift {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            opacity: 0;
+            transition: transform 1s ease-out, left 1s ease-out, top 1s ease-out;
+        }
+        .fall-animation { animation: fall linear forwards; }
+        .fall-to-win-animation { animation: fallToWin linear forwards; }
+        @keyframes fall {
+            from { transform: translateY(-100px); opacity: 1; }
+            to { transform: translateY(calc(100vh + 100px)); opacity: 1; }
+        }
+        @keyframes fallToWin {
+            from { transform: translateY(-100px); opacity: 1; }
+            to { transform: translateY(calc(100vh - 100px)); opacity: 1; }
+        }
+        #winner-banner {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.9);
+            color: #d9534f;
+            font-size: 2.5em;
+            font-weight: bold;
+            padding: 20px 40px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            text-align: center;
+            white-space: pre-wrap;
+            opacity: 0;
+            transform: scaleY(0) translateX(-50%);
+            transform-origin: bottom center;
+            transition: all 0.5s ease-out;
+            z-index: 1001;
+            cursor: pointer; /* <--- 新增這一行，讓滑鼠移上去變成手形 */
+        }
+        #winner-banner.show {
+            opacity: 1;
+            transform: scaleY(1) translateX(-50%);
+        }
+        button {
+            padding: 8px 12px;
+            font-size: 1em;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: white;
+            transition: background-color 0.3s;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        .snowflake {
+            position: absolute;
+            top: -10px;
+            background-color: white;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: snowfall linear infinite;
+        }
+        @keyframes snowfall {
+            to { transform: translateY(105vh); }
+        }
+
+
+        /* --- ▼▼▼ 新增的文字標題樣式 ▼▼▼ --- */
+
+
+#event-title {
+    position: absolute;
+    top: 10%;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    white-space: normal;
+    line-height: 1.2;
+
+    /* 🔥 關鍵：不能蓋到右邊抽獎面板 */
+    max-width: calc(100% - 320px);  /* 320px = 右側面板最小寬度 */
+
+    /* 原本的效果保留 */
+    font-size: 3.5em;
+    font-weight: bold;
+    color: #b30000;
+    z-index: 999;
+    text-shadow:
+        0 0 10px rgba(200, 170, 60, 0.45),
+        0 0 16px rgba(180, 150, 40, 0.35),
+        2px 2px 4px rgba(0,0,0,0.5);
+    animation: warmGlow 1.5s ease-in-out infinite;
+}
+
+/* ⭐ 土黃色燭光閃爍（柔和慢閃） */
+@keyframes warmGlow {
+    0% {
+        text-shadow:
+            0 0 8px rgba(200, 170, 60, 0.35),
+            0 0 12px rgba(180, 150, 40, 0.25),
+            2px 2px 4px rgba(0,0,0,0.5);
+    }
+    50% {
+        text-shadow:
+            0 0 20px rgba(255, 220, 120, 0.75), /* 亮黃金光 */
+            0 0 28px rgba(240, 200, 80, 0.55),
+            2px 2px 6px rgba(0,0,0,0.6);
+    }
+    100% {
+        text-shadow:
+            0 0 8px rgba(200, 170, 60, 0.35),
+            0 0 12px rgba(180, 150, 40, 0.25),
+            2px 2px 4px rgba(0,0,0,0.5);
+    }
+}
+       /* --- ▲▲▲ 文字標題樣式結束 ▲▲▲ --- */
+    </style>
+</head>
+<body>
+    <audio id="winner-sound" src="winner.mp3" preload="auto"></audio>
+
+    <div id="background-container">
+	<div id="event-title">114年第四季勵進會<br>聖誕抽獎</div>
+        <div id="winner-banner"></div>
+    </div>
+
+    <div id="right-panel">
+        <!-- <h2>抽獎控制台</h2> --!>
+
+        <div class="pool-section">
+            <h3>🎂 壽星抽獎池</h3>
+            <div class="file-upload-container">
+    		<label for="birthday-file-input" class="upload-btn">選擇檔案</label>
+    		<input type="file" id="birthday-file-input" accept=".xlsx">
+            </div>
+            <div class="draw-buttons">
+                <button id="birthday-single-draw">禮物 x 1</button>
+                <button id="birthday-multi-draw">禮物 x 5</button>
+		<button id="birthday-nine-draw">禮物 x 9</button>
+		<button id="birthday-ten-draw">禮物 x 10</button>
+
+            </div>
+            <div class="winner-list-container">
+                <h4>壽星中獎名單</h4>
+                <ul id="birthday-winner-list" class="winner-list"></ul>
+            </div>
+        </div>
+        
+
+        <div class="pool-section">
+            <h3>👥 全體抽獎池</h3>
+            <div class="file-upload-container">
+  		  <label for="all-file-input" class="upload-btn">選擇檔案</label>
+   		 <input type="file" id="all-file-input" accept=".xlsx">
+            </div>
+            <div class="draw-buttons">
+                <button id="all-single-draw">禮物 x 1</button>
+                <button id="all-multi-draw">禮物 x 5</button>
+		<button id="all-nine-draw">禮物 x 9</button>
+		<button id="all-ten-draw">禮物 x 10</button>
+            </div>
+            <div class="winner-list-container">
+                <h4>全體中獎名單</h4>
+                <ul id="all-winner-list" class="winner-list"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+    <script>
+        // --- 全域變數和元素 ---
+        const backgroundContainer = document.getElementById('background-container');
+        const winnerBanner = document.getElementById('winner-banner');
+        const winnerSound = document.getElementById('winner-sound');
+
+        const giftImages = ['gift1.png', 'gift2.png', 'gift3.png'];
+        const GIFT_HEIGHT = 100;
+
+        // --- 抽獎池資料結構 ---
+        let drawPools = {
+            birthday: {
+                remaining: [], // 壽星池可抽名單
+                listElement: document.getElementById('birthday-winner-list'),
+                buttons: [document.getElementById('birthday-single-draw'), document.getElementById('birthday-multi-draw'),document.getElementById('birthday-nine-draw'),document.getElementById('birthday-ten-draw')],
+                winnerCount: 0 // <--- 在這裡新增一行
+            },
+            all: {
+                remaining: [], // 全體池可抽名單
+                listElement: document.getElementById('all-winner-list'),
+                buttons: [document.getElementById('all-single-draw'), document.getElementById('all-multi-draw'), document.getElementById('all-nine-draw'),document.getElementById('all-ten-draw')],
+                winnerCount: 0 // <--- 在這裡新增一行
+            }
+        };
+
+        // --- 全域已中獎名單 (防止重複中獎) ---
+        let globalWinners = new Set();
+
+        // --- 檔案讀取器 ---
+        function setupFileReader(inputId, poolKey) {
+            const fileInput = document.getElementById(inputId);
+            fileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const firstSheetName = workbook.SheetNames[0];
+                            const worksheet = workbook.Sheets[firstSheetName];
+                            const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                            const participantList = json.slice(1).map(row => row ? String(row[0]).trim() : '').filter(name => name);
+                            
+                            // 更新指定抽獎池的可抽名單
+                            drawPools[poolKey].remaining = participantList.filter(name => !globalWinners.has(name));
+                            
+                            //alert(`"${poolKey}" 抽獎池成功載入 ${participantList.length} 位。其中 ${drawPools[poolKey].remaining.length} 位可參與抽獎。`);
+                        } catch (error) {
+                            alert("讀取 Excel 檔案失敗，請確認檔案格式是否正確。");
+                        }
+                    };
+                    reader.readAsArrayBuffer(file);
+                }
+            });
+        }
+        setupFileReader('birthday-file-input', 'birthday');
+        setupFileReader('all-file-input', 'all');
+
+        // --- 抽獎核心邏輯 ---
+        function drawWinners(poolKey, count) {
+            const pool = drawPools[poolKey];
+            if (pool.remaining.length < count) {
+                alert(`"${poolKey}" 抽獎池剩餘人數不足 ${count} 人，無法抽獎！`);
+                return null;
+            }
+            const winners = [];
+            for (let i = 0; i < count; i++) {
+                const randomIndex = Math.floor(Math.random() * pool.remaining.length);
+                const winner = pool.remaining.splice(randomIndex, 1)[0];
+                winners.push(winner);
+                
+                // 加入全域中獎名單
+                globalWinners.add(winner); 
+            }
+            
+            // 更新另一個池子的可抽名單，移除剛中獎的人
+            const otherPoolKey = poolKey === 'birthday' ? 'all' : 'birthday';
+            drawPools[otherPoolKey].remaining = drawPools[otherPoolKey].remaining.filter(name => !globalWinners.has(name));
+
+            return winners;
+        }
+
+        function showWinnerBanner(winners, poolKey) {
+            winners.forEach(winner => {
+                drawPools[poolKey].winnerCount++;
+                const listItem = document.createElement('li');
+                listItem.textContent = `${drawPools[poolKey].winnerCount}. ${winner}`;
+                drawPools[poolKey].listElement.prepend(listItem);
+            });
+
+            //const winnerText = winners.join('、 ');
+            //winnerBanner.innerHTML = `恭喜 ${winnerText} 中獎!`;
+	    const winnerText = winners.join('<br>');
+	    winnerBanner.innerHTML = `恭喜<br>${winnerText}<br>中獎!`;
+            winnerBanner.style.top = '25%';
+            winnerBanner.style.left = '50%';
+            winnerBanner.classList.add('show');
+
+            if (winnerSound) {
+                winnerSound.currentTime = 0;
+                winnerSound.play();
+            }
+            
+            // --- ▼▼▼ 修改的核心在這裡 ▼▼▼ ---
+            // 移除原本的自動消失計時器
+            // let displayTime = ...
+            // setTimeout(resetLottery, displayTime);
+
+            // 新增點擊事件監聽，點擊後才執行 resetLottery
+            // { once: true } 表示這個事件只會觸發一次，之後就自動移除
+            winnerBanner.addEventListener('click', resetLottery, { once: true });
+            // --- ▲▲▲ 修改結束 ▲▲▲ ---
+        }
+
+        function resetLottery() {
+            winnerBanner.classList.remove('show');
+            document.querySelectorAll('.gift').forEach(gift => gift.remove());
+            // 啟用所有按鈕
+            Object.values(drawPools).forEach(pool => pool.buttons.forEach(btn => btn.disabled = false));
+        }
+
+        // --- 動畫 ---
+        function startDrawAnimation(poolKey, winnerCount) {
+            const winners = drawWinners(poolKey, winnerCount);
+            if (!winners) return;
+            
+            // 禁用所有按鈕
+            Object.values(drawPools).forEach(pool => pool.buttons.forEach(btn => btn.disabled = true));
+            
+            const numberOfGifts = 40;
+            const winningGiftIndex = Math.floor(Math.random() * numberOfGifts);
+            
+            for (let i = 0; i < numberOfGifts; i++) {
+                const gift = document.createElement('div');
+                gift.className = 'gift';
+                gift.style.backgroundImage = `url('${giftImages[Math.floor(Math.random() * giftImages.length)]}')`;
+                const startX = Math.random() * (backgroundContainer.offsetWidth - GIFT_HEIGHT);
+                gift.style.left = `${startX}px`;
+
+                if (i === winningGiftIndex) {
+                    gift.classList.add('fall-to-win-animation');
+                    gift.style.animationDuration = '1.4s';
+                    gift.style.animationDelay = '2.0s';
+                    gift.addEventListener('animationend', () => {
+                        setTimeout(() => {
+                            gift.style.top = '50%';
+                            gift.style.left = '50%';
+                            gift.style.zIndex = '1000';
+                            gift.style.transform = 'translate(-50%, -50%) scale(5)';
+                            setTimeout(() => showWinnerBanner(winners, poolKey), 1000);
+                        }, 20);
+                    }, { once: true });
+                } else {
+                    gift.classList.add('fall-animation');
+                    gift.style.animationDuration = `${1.5 + Math.random() * 1}s`;
+                    gift.style.animationDelay = `${Math.random() * 1.5}s`;
+                    gift.addEventListener('animationend', () => gift.remove(), { once: true });
+                }
+                backgroundContainer.appendChild(gift);
+            }
+        }
+        
+        // --- 按鈕事件綁定 ---
+        drawPools.birthday.buttons[0].addEventListener('click', () => startDrawAnimation('birthday', 1));
+        drawPools.birthday.buttons[1].addEventListener('click', () => startDrawAnimation('birthday', 5));
+	drawPools.birthday.buttons[2].addEventListener('click', () => startDrawAnimation('birthday', 9));
+	drawPools.birthday.buttons[3].addEventListener('click', () => startDrawAnimation('birthday', 10));
+        drawPools.all.buttons[0].addEventListener('click', () => startDrawAnimation('all', 1));
+        drawPools.all.buttons[1].addEventListener('click', () => startDrawAnimation('all', 5));
+	drawPools.all.buttons[2].addEventListener('click', () => startDrawAnimation('all', 9));
+	drawPools.all.buttons[3].addEventListener('click', () => startDrawAnimation('all', 10));
+
+        
+        // --- 雪花效果 ---
+        function createSnowflake() {
+            const snowflake = document.createElement('div');
+            snowflake.classList.add('snowflake');
+            const size = Math.random() * 4 + 3;
+            snowflake.style.width = `${size}px`;
+            snowflake.style.height = `${size}px`;
+            snowflake.style.left = `${Math.random() * 100}%`;
+            const duration = Math.random() * 5 + 8;
+            snowflake.style.animationDuration = `${duration}s`;
+            const delay = Math.random() * 5;
+            snowflake.style.animationDelay = `${delay}s`;
+            snowflake.style.opacity = Math.random() * 0.7 + 0.3;
+            backgroundContainer.appendChild(snowflake);
+            setTimeout(() => snowflake.remove(), (duration + delay) * 1000);
+        }
+        setInterval(createSnowflake, 90);
+    </script>
+</body>
+</html>

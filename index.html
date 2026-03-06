@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>抽獎系統</title>
+    <style>
+        /* CSS 樣式 */
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            display: flex;
+            height: 100vh;
+        }
+
+        #background-container {
+            position: relative;
+            width: 80%;
+            height: 100%;
+            background-image: url('background.png'); /* 確保您的背景圖片檔名正確 */
+            background-size: cover;
+            background-position: center;
+            overflow: hidden;
+        }
+
+        #right-panel {
+            width: 20%;
+            height: 100%;
+            background-color: #f0f0f0;
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .gift {
+            position: absolute;
+            width: 250px;  /* 您可以在這裡調整所有禮物的大小 */
+            height: 250px; /* 您可以在這裡調整所有禮物的大小 */
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            opacity: 0; /* 初始不可見 */
+        }
+        
+        /* 普通禮物掉落動畫 (掉出畫面) */
+        .fall-animation {
+            animation: fall linear forwards;
+        }
+        
+        /* 中獎禮物掉落動畫 (停在底部) */
+        .fall-to-win-animation {
+            animation: fallToWin linear forwards;
+        }
+
+        @keyframes fall {
+            from {
+                transform: translateY(-100px);
+                opacity: 1;
+            }
+            to {
+                transform: translateY(calc(100vh + 100px));
+                opacity: 1;
+            }
+        }
+        
+        @keyframes fallToWin {
+            from {
+                transform: translateY(-100px);
+                opacity: 1;
+            }
+            to {
+                /* 掉落到剛好接觸底部 (100px 是禮物的高度) */
+                transform: translateY(calc(100vh - 100px));
+                opacity: 1;
+            }
+        }
+
+        /* 禮物放大效果的 class */
+        .enlarged {
+            transform-origin: bottom center; /* 從底部向上放大 */
+            transition: transform 1s ease-out, left 1s ease-out, top 1s ease-out;
+            transform: scale(10.0); /* 放大 3 倍 */
+            z-index: 1200;
+        }
+
+        /* 中獎橫幅的樣式 */
+        #winner-banner {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.9);
+            color: #d9534f;
+            font-size: 2.5em;
+            font-weight: bold;
+            padding: 20px 40px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            white-space: pre-wrap;
+            
+            /* 初始隱藏狀態，為展開動畫做準備 */
+            opacity: 0;
+            transform: scaleY(0) translateX(-50%); /* 保持水平置中 */
+            transform-origin: bottom center; /* 從底部向上展開 */
+            transition: all 0.5s ease-out;
+            z-index: 1001; /* 確保在放大的禮物之上 */
+        }
+        
+        #winner-banner.show {
+            opacity: 1;
+            transform: scaleY(1) translateX(-50%); /* 展開 */
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: white;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        #winner-list-container {
+            margin-top: 20px;
+            width: 90%;
+            max-height: calc(100% - 200px);
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+            background-color: white;
+        }
+
+        #winner-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        #winner-list li {
+            padding: 8px 0;
+            border-bottom: 1px dashed #eee;
+            font-size: 1.1em;
+            color: #333;
+        }
+
+        #winner-list li:last-child {
+            border-bottom: none;
+        }
+
+        #file-upload-container {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        #file-input {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="background-container">
+        <div id="winner-banner"></div>
+    </div>
+
+    <div id="right-panel">
+        <h2>抽獎控制台</h2>
+        <div id="file-upload-container">
+            <h3>上傳名單 (Excel .xlsx)</h3>
+            <input type="file" id="file-input" accept=".xlsx">
+            <p>請上傳包含所有參賽者姓名的Excel檔案，第一欄為姓名。</p>
+        </div>
+        <button id="single-draw-button">單次抽獎</button>
+        <button id="multi-draw-button">一次抽5位</button>
+        <h3>中獎者名單</h3>
+        <div id="winner-list-container">
+            <ul id="winner-list"></ul>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+    <script>
+        // JavaScript 邏輯
+        const backgroundContainer = document.getElementById('background-container');
+        const winnerBanner = document.getElementById('winner-banner');
+        const singleDrawButton = document.getElementById('single-draw-button');
+        const multiDrawButton = document.getElementById('multi-draw-button');
+        const winnerList = document.getElementById('winner-list');
+        const fileInput = document.getElementById('file-input');
+
+        // 使用您上傳的禮物圖片檔名
+        const giftImages = [
+            'gift2.png',
+            'gift1.png',
+            'gift3.png'
+        ];
+
+        let participantList = [];
+        let remainingParticipants = [];
+        
+        // 這個常數必須與 CSS 中的 .gift height 和 @keyframes fallToWin 的值保持一致
+        const GIFT_HEIGHT = 100;
+
+        // 讀取 Excel 檔案
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                        participantList = json.slice(1).map(row => row ? row[0] : '').filter(name => name);
+                        remainingParticipants = [...participantList];
+                        winnerList.innerHTML = ''; // 清空舊的中獎名單
+                        console.log('參賽者名單已載入:', participantList);
+                        alert(`成功載入 ${participantList.length} 位參賽者。`);
+                    } catch (error) {
+                        console.error("讀取 Excel 檔案失敗:", error);
+                        alert("讀取 Excel 檔案失敗，請確認檔案格式是否正確。");
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        });
+
+        // 創建一個新的禮物元素
+        function createGift(imageUrl) {
+            const gift = document.createElement('div');
+            gift.classList.add('gift');
+            gift.style.backgroundImage = `url('${imageUrl}')`;
+            return gift;
+        }
+        
+        // 核心動畫流程
+        function startDrawAnimation(winnerCount) {
+            const winners = drawAndListWinners(winnerCount);
+            if (!winners) {
+                return; // 如果沒有中獎者 (例如人數不足)，則中止動畫
+            }
+            
+            singleDrawButton.disabled = true;
+            multiDrawButton.disabled = true;
+
+            const numberOfGifts = 30;
+            const winningGiftIndex = Math.floor(Math.random() * numberOfGifts);
+            
+            // 產生所有掉落的禮物
+            for (let i = 0; i < numberOfGifts; i++) {
+                const gift = createGift(giftImages[Math.floor(Math.random() * giftImages.length)]);
+                const startX = Math.random() * (backgroundContainer.offsetWidth - GIFT_HEIGHT);
+                gift.style.left = `${startX}px`;
+                gift.style.animationDuration = `${1.5 + Math.random() * 1}s`;
+
+                if (i === winningGiftIndex) {
+                    // 這是中獎禮物
+                    gift.classList.add('fall-to-win-animation');
+                    gift.style.animationDelay = '2.5s'; // 讓它最後掉落
+
+                    gift.addEventListener('animationend', () => {
+                        gift.classList.add('enlarged');
+
+                        // 設定新的目標：畫面正中心
+                        gift.style.top = '50%';
+                        gift.style.left = '50%';
+                        
+                        // 新的 transform：置中並放大5倍
+                        gift.style.transform = `translate(-50%, -50%) scale(5)`;
+
+                        // 延遲 1 秒 (等待移動和放大動畫完成) 後顯示橫幅
+                        setTimeout(() => {
+                            showWinnerBanner(winners);
+                        }, 1000);
+                    }, { once: true });
+
+                } else {
+                    // 這是普通禮物
+                    gift.classList.add('fall-animation');
+                    gift.style.animationDelay = `${Math.random() * 2}s`;
+
+                    gift.addEventListener('animationend', () => {
+                        if (gift.parentNode) {
+                            gift.parentNode.removeChild(gift);
+                        }
+                    }, { once: true });
+                }
+                backgroundContainer.appendChild(gift);
+            }
+        }
+        
+
+        // 顯示中獎者橫幅
+        function showWinnerBanner(winners) {
+            // 使用頓號和空格來分隔姓名，不再換行
+            const winnerText = winners.join('、 ');
+            winnerBanner.innerHTML = `恭喜 ${winnerText} 中獎!`;
+            
+            // 重新定位橫幅到畫面上方 40% 的位置
+            winnerBanner.style.top = '40%';
+            winnerBanner.style.left = '50%';
+            winnerBanner.style.bottom = ''; // 清除舊的 bottom 樣式
+            
+            winnerBanner.classList.add('show'); // 觸發展開動畫
+
+            setTimeout(() => {
+                resetLottery();
+            }, 2000); // 橫幅顯示 2 秒後重置
+        }
+
+        // 從剩餘名單中抽取中獎者
+        function drawAndListWinners(count) {
+            if (remainingParticipants.length < count) {
+                alert(`剩餘人數不足 ${count} 人，無法抽獎！`);
+                return null;
+            }
+
+            const winners = [];
+            for (let i = 0; i < count; i++) {
+                const randomIndex = Math.floor(Math.random() * remainingParticipants.length);
+                const winner = remainingParticipants.splice(randomIndex, 1)[0];
+                winners.push(winner);
+
+                const listItem = document.createElement('li');
+                listItem.textContent = winner;
+                winnerList.prepend(listItem);
+            }
+            return winners;
+        }
+        
+        // 重置抽獎系統回到初始狀態
+        function resetLottery() {
+            winnerBanner.classList.remove('show');
+            
+            const allGifts = document.querySelectorAll('.gift');
+            allGifts.forEach(gift => {
+                if(gift.parentNode) {
+                    gift.parentNode.removeChild(gift);
+                }
+            });
+            
+            singleDrawButton.disabled = false;
+            multiDrawButton.disabled = false;
+        }
+
+        // 綁定抽獎按鈕事件
+        singleDrawButton.addEventListener('click', () => {
+            if (participantList.length === 0) {
+                alert('請先上傳參賽者名單！');
+                return;
+            }
+            startDrawAnimation(1);
+        });
+
+        multiDrawButton.addEventListener('click', () => {
+            if (participantList.length === 0) {
+                alert('請先上傳參賽者名單！');
+                return;
+            }
+            startDrawAnimation(5);
+        });
+    </script>
+</body>
+</html>
